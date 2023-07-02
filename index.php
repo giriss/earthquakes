@@ -6,31 +6,25 @@ const XML_DATA_URL = 'https://earthquake.usgs.gov/fdsnws/event/1/query?format=qu
 function fetchData($type, $sort, $search) {
 	$client = new GuzzleHttp\Client();
 	$response = $client->request('GET', $type == 'json' ? JSON_DATA_URL : XML_DATA_URL);
-	$features = $type == 'json' ?
+	$events = $type == 'json' ?
 		json_decode($response->getBody())->features :
-		simplexml_load_string($response->getBody())->eventParameters->event;
+		iterator_to_array(simplexml_load_string($response->getBody())->eventParameters->event, false);
 	$earthquakes = array_map(
-		$type == 'json' ?
-			fn($feature): array => [
-				'magnitude' => $feature->properties->mag,
-				'datetime' => date('d/m/Y H:i:s', intval($feature->properties->time / 1000)),
-				'coordinates' => $feature->geometry->coordinates,
-				'place' => $feature->properties->place
-			] :
-			function($event) {
-				$datetime = new DateTime($event->origin->time->value);
-
-				return [
-					'magnitude' => $event->magnitude->mag->value,
-					'datetime' => $datetime->format('d/m/Y H:i:s'),
-					'coordinates' => [$event->origin->longitude->value, $event->origin->latitude->value],
-					'place' => $event->description->text,
-				];
-			},
-		$features
+		fn($earthquake): array => $type == 'json' ? [
+			'magnitude' => $earthquake->properties->mag,
+			'datetime' => date('d/m/Y H:i:s', intval($earthquake->properties->time / 1000)),
+			'coordinates' => $earthquake->geometry->coordinates,
+			'place' => $earthquake->properties->place
+		] : [
+			'magnitude' => $earthquake->magnitude->mag->value,
+			'datetime' => (new DateTime($earthquake->origin->time->value))->format('d/m/Y H:i:s'),
+			'coordinates' => [$earthquake->origin->longitude->value, $earthquake->origin->latitude->value],
+			'place' => $earthquake->description->text,
+		],
+		$events
 	);
 	if ($sort) {
-		usort($earthquakes, fn($a, $b) => $b['magnitude'] <=> $a['magnitude']);
+		usort($earthquakes, fn($a, $b) => floatval($b['magnitude']) <=> floatval($a['magnitude']));
 	}
 	if ($search) {
 		$earthquakes = array_filter($earthquakes, fn($earthquake) => strpos($earthquake['place'], $search) !== false);
