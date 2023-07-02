@@ -1,0 +1,7 @@
+{
+    "require": {
+        "leafs/leaf": "^3.0",
+        "leafs/blade": "^1.2",
+        "guzzlehttp/guzzle": "^7.0"
+    }
+}
